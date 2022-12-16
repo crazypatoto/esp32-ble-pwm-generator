@@ -11,6 +11,10 @@ var pwmDutyReading;
 var autoUpdate = false;
 var autoUpdateInterval;
 
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 function log(data) {
     $('#log-output').append(data + '<br>');
     console.log(data);
@@ -40,7 +44,7 @@ $('#autoUpdateCheck').click(function () {
     autoUpdate = $('#autoUpdateCheck').is(':checked');
     if (autoUpdate) {
         $('#saveBtn').text('Disable Auto Update to Save Settings').button("refresh");
-        $('#saveBtn').attr('disabled', 'disabled');        
+        $('#saveBtn').attr('disabled', 'disabled');
         autoUpdateInterval = setInterval(updateSettings, 20);
     } else {
         $('#saveBtn').text('Apply & Save to EEPROM').button("refresh");
@@ -95,28 +99,33 @@ function connect() {
             }
 
             log('Target Characteristic Found, Initiating...');
+            return true;
 
-            mySettingCharacteristic.readValue().then(
-                value => {
-                    pwmFrequencySetting = value.getUint32(0, true);
-                    pwmDutySetting = value.getFloat32(4, true);
-                    $('#frequencySetting').val(pwmFrequencySetting);
-                    $('#dutySetting').val(pwmDutySetting);
-                    $('#dutyRangeSetting').val(pwmDutySetting);                    
-                }
-            );
-
+        })
+        .then(_ => {
+            log('startNotifications');
             myReadingCharacteristic.startNotifications().then(_ => {
+                log('Srart Listening');
                 myReadingCharacteristic.addEventListener('characteristicvaluechanged',
                     handleReadingsNotifications);
 
             });
-
-            $('#connectBtn').text('Connected').button("refresh");
-            $('#connectBtn').attr('disabled', 'disabled');
-            $('#controlForm').children('fieldset').removeAttr('disabled');
-
-            return true;
+        })
+        .then(_ => {
+            setTimeout(function () {
+                mySettingCharacteristic.readValue().then(
+                    value => {
+                        pwmFrequencySetting = value.getUint32(0, true);
+                        pwmDutySetting = value.getFloat32(4, true);
+                        $('#frequencySetting').val(pwmFrequencySetting);
+                        $('#dutySetting').val(pwmDutySetting);
+                        $('#dutyRangeSetting').val(pwmDutySetting);
+                    }
+                );
+                $('#connectBtn').text('Connected').button("refresh");
+                $('#connectBtn').attr('disabled', 'disabled');
+                $('#controlForm').children('fieldset').removeAttr('disabled');
+            }, 100);
         })
         .catch(error => {
             log('Error: ' + error);
@@ -127,10 +136,11 @@ function connect() {
 
 function handleReadingsNotifications(event) {
     let value = event.target.value;
-    // let a = [];
+    
     // Convert raw data bytes to hex values just for the sake of showing something.
     // In the "real" world, you'd use data.getUint8, data.getUint16 or even
     // TextDecoder to process raw data bytes.
+    // let a = [];
     // for (let i = 0; i < value.byteLength; i++) {
     //     a.push('0x' + ('00' + value.getUint8(i).toString(16)).slice(-2));
     // }
